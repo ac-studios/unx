@@ -7,7 +7,46 @@ window = pyglet.window.Window(32*5,32*5,fullscreen=False)
 # but internally, you must access it by flipping the rows.
 # this can be accomplished with the flipped_map.
 
-map = [
+# idk why topy has to be like this..
+# the renderer breaks unless this config is used.
+# topx *should be set to len(map)*32 too, but,
+# nobody cares because it isn't used internally
+
+# this might be extended for a interactable objects update
+class Game:
+    def __init__(self):
+        self.maps = ["assets/map0.MAPFILE", "assets/map1.MAPFILE"]
+        self.index = 0
+        self.map = []
+        self.flipped_map = []
+        self.entities = []
+    def loadmap(self, idx):
+        # this will need to be updated for JSON.parse, fs, etc
+        self.map = self.maps[idx]
+        self.flipped_map = self.map[::-1]
+        self.entities = None # acquire them somehow
+        global topy
+        topy = len(self.map)*32
+    def incg(self):
+        t=self.index+0
+        self.index+=1
+        return t
+    def loadnextmap(self):
+        self.loadmap(self.incg())
+    def checkInteraction(self, x , y):
+        pass
+    def checkCover(self, x, y):
+        pass
+    def getTile(self, x, y):
+        return self.flipped_map[y][x]
+    def drawEntities(self):
+        for E in self.entities:
+            draw_entity(E, player)
+
+game = Game()
+
+# manual load temporarily
+game.map = [
     [1, 1, 1, 1, 1, 1, 1, 1],
     [1, 1, 0, 1, 0, 0, 0, 1],
     [1, 0, 0, 1, 1, 1, 0, 1],
@@ -17,41 +56,14 @@ map = [
     [1, 0, 0, 0, 1, 0, 0, 1],
     [1, 0, 1, 1, 1, 0, 1, 1],
     [1, 0, 0, 0, 0, 0, 0, 1],
-    [1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1]
 ]
-flipped_map = map[::-1]
 
-# idk why topy has to be like this..
-# the renderer breaks unless this config is used.
-# topx *should be set to len(map)*32 too, but,
-# nobody cares because it isn't used internally
-topx, topy = window.get_size()[0], len(map)*32
+game.flipped_map = game.map[::-1]
+
+topx, topy = window.get_size()[0], len(game.map)*32
 centerx, centery = topx // 2 , topy // 2
 
-# this might be extended for a interactable objects update
-class Game:
-    def __init__(self):
-        self.maps = ["assets/map0.json", "assets/map1.json"]
-        self.index = 0
-        self.map = []
-        self.flipped_map = []
-        self.entities = []
-    def loadmap(self, idx):
-        # this will need to be updated for JSON.parse, fs, etc
-        self.map = self.maps[idx]
-        self.flipped_map = self.map[::-1]
-    def incg(self):
-        t=self.index+0
-        self.index+=1
-        return t
-    def loadnextmap(self):
-        self.loadmap(self.incg())
-    def checkInteraction(self):
-        pass
-    def checkCover(self):
-        pass
-
-game = Game()
 class entity:
     def __init__(self, x, y, image):
         self.x = x
@@ -127,7 +139,7 @@ def draw_player():
 # if its not, we return False
 def isWalkable(x,y):
     try:
-        tile=flipped_map[y][x]
+        tile=game.getTile(x, y)
         if(tile in [1] or tile == None):
             return False
         return True
@@ -137,7 +149,8 @@ def isWalkable(x,y):
 @window.event 
 def on_draw():
     window.clear()
-    draw_map(map)
+    draw_map(game.map)
+    game.drawEntities()
     draw_player()
 
 @window.event
@@ -154,5 +167,7 @@ def on_key_press(symb, mod):
     if(symb == key.D and isWalkable(player.x + 1, player.y) == True):
         player.x += 1
         player.facing = "right"
+    if(symb == key.E):
+        pass
 
 pyglet.app.run()
