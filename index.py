@@ -1,3 +1,4 @@
+from numpy import isin
 import pyglet
 import math
 from pyglet.window import key
@@ -15,18 +16,20 @@ window = pyglet.window.Window(32*5,32*5,fullscreen=False)
 # this might be extended for a interactable objects update
 class Game:
     def __init__(self):
-        self.maps = ["assets/map0.MAPFILE", "assets/map1.MAPFILE"]
+        self.maps = []
         self.index = 0
         self.map = []
         self.flipped_map = []
         self.entities = []
     def loadmap(self, idx):
-        # this will need to be updated for JSON.parse, fs, etc
-        self.map = self.maps[idx]
+        if idx >= len(self.maps): return None # this prevents IndexErrors
+        self.map = self.maps[idx].map
         self.flipped_map = self.map[::-1]
-        self.entities = None # acquire them somehow
+        self.entities = self.maps[idx].entities
         global topy
         topy = len(self.map)*32
+        player.x = self.maps[idx].spawnx
+        player.y = self.maps[idx].spawny
     def incg(self):
         t=self.index+0
         self.index+=1
@@ -34,32 +37,32 @@ class Game:
     def loadnextmap(self):
         self.loadmap(self.incg())
     def checkInteraction(self, x , y):
-        pass
+        for E in self.entities:
+            if(E.x == x and E.y == y):
+                try:
+                    E.triggerOnInteract()
+                finally:
+                    pass
     def checkCover(self, x, y):
-        pass
+        for E in self.entities:
+            if(E.x == x and E.y == y):
+                try:
+                    E.triggerOnCover()
+                finally:
+                    pass
     def getTile(self, x, y):
         return self.flipped_map[y][x]
     def drawEntities(self):
         for E in self.entities:
             draw_entity(E, player)
+class Map:
+    def __init__(self, mapraw, entities, spawnx, spawny):
+        self.map = mapraw
+        self.entities = entities
+        self.spawnx = spawnx
+        self.spawny = spawny
 
 game = Game()
-
-# manual load temporarily
-game.map = [
-    [1, 1, 1, 1, 1, 1, 1, 1],
-    [1, 1, 0, 1, 0, 0, 0, 1],
-    [1, 0, 0, 1, 1, 1, 0, 1],
-    [1, 0, 1, 0, 1, 0, 0, 1],
-    [1, 0, 0, 0, 1, 0, 1, 1],
-    [1, 1, 1, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 1, 0, 0, 1],
-    [1, 0, 1, 1, 1, 0, 1, 1],
-    [1, 0, 0, 0, 0, 0, 0, 1],
-    [1, 1, 1, 1, 1, 1, 1, 1]
-]
-
-game.flipped_map = game.map[::-1]
 
 topx, topy = window.get_size()[0], len(game.map)*32
 centerx, centery = topx // 2 , topy // 2
@@ -76,13 +79,11 @@ class entity2:
         self.y = y
         self.image = image
         self.collidable = collidable
+        self.facing = "up"
 
         # predef
         self.oncover = None
         self.oninteract = None
-
-        # push to game stack
-        game.entities.append(self)
     def triggerOnCover(self):
         try:
             self.oncover()
@@ -90,9 +91,22 @@ class entity2:
             pass
     def triggerOnInteract(self):
         try:
-            self.oncover()
+            self.oninteract()
         finally:
             pass
+class int_door:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.image = "assets/int_door.png"
+        self.collidable = False
+        self.facing = "up"
+
+        # predef
+        self.oninteract = None
+    def triggerOnCover(self):
+        game.loadnextmap()
+
 player = entity(1, 1, "assets/player.png")
 
 # the images are all 32x32. this is just 32
@@ -106,6 +120,7 @@ def get_image(tile_num):
     if tile_num == 1: return "assets/tile_wall.png"
     if tile_num == 2: return "assets/tile_flower_normal.png"
     if tile_num == 3: return "assets/tile_grass_normal.png"
+    if tile_num == 4: return "assets/tile_crimson_wall.png"
 
 # we draw the image "relative" to the player,
 # so it ensures the player is always "centered"
@@ -140,7 +155,7 @@ def draw_player():
 def isWalkable(x,y):
     try:
         tile=game.getTile(x, y)
-        if(tile in [1] or tile == None):
+        if(tile in [1,4] or tile == None):
             return False
         return True
     except IndexError:
@@ -158,16 +173,57 @@ def on_key_press(symb, mod):
     if(symb == key.W and isWalkable(player.x, player.y + 1) == True):
         player.y += 1
         player.facing = "up"
+        game.checkCover(player.x, player.y)
     if(symb == key.A and isWalkable(player.x - 1, player.y) == True):
         player.x -= 1
         player.facing = "left"
+        game.checkCover(player.x, player.y)
     if(symb == key.S and isWalkable(player.x, player.y - 1) == True):
         player.y -= 1
         player.facing = "down"
+        game.checkCover(player.x, player.y)
     if(symb == key.D and isWalkable(player.x + 1, player.y) == True):
         player.x += 1
         player.facing = "right"
+        game.checkCover(player.x, player.y)
     if(symb == key.E):
-        pass
+        if(player.facing == "up"):
+            game.checkInteraction(player.x, player.y + 1)
+        if(player.facing == "left"):
+            game.checkInteraction(player.x - 1, player.y)
+        if(player.facing == "down"):
+            game.checkInteraction(player.x, player.y - 1)
+        if(player.facing == "right"):
+            game.checkInteraction(player.x + 1, player.y)
+
+game.maps = [Map([
+    [1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1],
+    [1, 1, 2, 3, 4, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1]
+], [
+    int_door(4, 4)
+], 1, 1), Map([
+    [1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 0, 1, 0, 0, 0, 1, 1],
+    [1, 0, 0, 0, 1, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1]
+], [ 
+    int_door(1, 8)
+], 1, 1)]
+
+game.loadnextmap()
 
 pyglet.app.run()
