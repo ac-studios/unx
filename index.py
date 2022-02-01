@@ -21,8 +21,9 @@ class Game:
         self.map = []
         self.flipped_map = []
         self.entities = []
+        self.uistate = "game"
     def loadmap(self, idx):
-        if idx >= len(self.maps): return None # this prevents IndexErrors
+        if(idx >= len(self.maps)): return self.gameOver() # this prevents IndexErrors
         self.map = self.maps[idx].map
         self.flipped_map = self.map[::-1]
         self.entities = self.maps[idx].entities
@@ -30,6 +31,8 @@ class Game:
         topy = len(self.map)*32
         player.x = self.maps[idx].spawnx
         player.y = self.maps[idx].spawny
+    def gameOver(self):
+        self.uistate = "over"
     def incg(self):
         t=self.index+0
         self.index+=1
@@ -106,8 +109,31 @@ class int_door:
         self.oninteract = None
     def triggerOnCover(self):
         game.loadnextmap()
+class int_coin:
+    def __init__(self, x=0, y=0):
+        self.x = x
+        self.y = y
+        self.image = "assets/int_coin.png"
+        self.collidable = False
+        self.facing = "up"
+        self.countable = True
 
-player = entity(1, 1, "assets/player.png")
+        # predef
+        self.oninteract = None
+    def triggerOnCover(self):
+        if(self.countable == True):
+            player.coins += 1
+            self.image = "assets/transparent_x32.png" # make us appear invisible
+            self.countable = False
+class Player:
+    def __init__(self, x, y, image):
+        self.x = x
+        self.y = y
+        self.image = image
+        self.facing = "up"
+        self.coins = 0
+
+player = Player(1, 1, "assets/player.png")
 
 # the images are all 32x32. this is just 32
 TileTextureSize = 32
@@ -163,39 +189,46 @@ def isWalkable(x,y):
 
 @window.event 
 def on_draw():
-    window.clear()
-    draw_map(game.map)
-    game.drawEntities()
-    draw_player()
+    if(game.uistate == "game"):
+        window.clear()
+        draw_map(game.map)
+        game.drawEntities()
+        draw_player()
+    elif(game.uistate == "over"):
+        window.clear()
+        coin_lbl = pyglet.text.Label(text="coins : " + str(player.coins))
+        title_lbl = pyglet.text.Label(text="game over", y=32*2, x=32)
+        coin_lbl.draw()
+        title_lbl.draw()
 
 @window.event
 def on_key_press(symb, mod):
-    if(symb == key.W and isWalkable(player.x, player.y + 1) == True):
-        player.y += 1
-        player.facing = "up"
-        game.checkCover(player.x, player.y)
-    if(symb == key.A and isWalkable(player.x - 1, player.y) == True):
-        player.x -= 1
-        player.facing = "left"
-        game.checkCover(player.x, player.y)
-    if(symb == key.S and isWalkable(player.x, player.y - 1) == True):
-        player.y -= 1
-        player.facing = "down"
-        game.checkCover(player.x, player.y)
-    if(symb == key.D and isWalkable(player.x + 1, player.y) == True):
-        player.x += 1
-        player.facing = "right"
-        game.checkCover(player.x, player.y)
-    if(symb == key.E):
-        if(player.facing == "up"):
-            game.checkInteraction(player.x, player.y + 1)
-        if(player.facing == "left"):
-            game.checkInteraction(player.x - 1, player.y)
-        if(player.facing == "down"):
-            game.checkInteraction(player.x, player.y - 1)
-        if(player.facing == "right"):
-            game.checkInteraction(player.x + 1, player.y)
-
+    if(game.uistate == "game"):
+        if(symb == key.W and isWalkable(player.x, player.y + 1) == True):
+            player.y += 1
+            player.facing = "up"
+            game.checkCover(player.x, player.y)
+        if(symb == key.A and isWalkable(player.x - 1, player.y) == True):
+            player.x -= 1
+            player.facing = "left"
+            game.checkCover(player.x, player.y)
+        if(symb == key.S and isWalkable(player.x, player.y - 1) == True):
+            player.y -= 1
+            player.facing = "down"
+            game.checkCover(player.x, player.y)
+        if(symb == key.D and isWalkable(player.x + 1, player.y) == True):
+            player.x += 1
+            player.facing = "right"
+            game.checkCover(player.x, player.y)
+        if(symb == key.E):
+            if(player.facing == "up"):
+                game.checkInteraction(player.x, player.y + 1)
+            if(player.facing == "left"):
+                game.checkInteraction(player.x - 1, player.y)
+            if(player.facing == "down"):
+                game.checkInteraction(player.x, player.y - 1)
+            if(player.facing == "right"):
+                game.checkInteraction(player.x + 1, player.y)
 game.maps = [Map([
     [1, 1, 1, 1, 1, 1, 1, 1],
     [1, 0, 0, 0, 0, 0, 0, 1],
@@ -221,7 +254,11 @@ game.maps = [Map([
     [1, 0, 0, 0, 0, 0, 0, 1],
     [1, 1, 1, 1, 1, 1, 1, 1]
 ], [ 
-    int_door(1, 8)
+    int_door(1, 8),
+    int_coin(1, 1),
+    int_coin(2, 1),
+    int_coin(3, 1),
+    int_coin(4, 1)
 ], 1, 1)]
 
 game.loadnextmap()
